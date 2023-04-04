@@ -9,25 +9,35 @@ contract USPlus is ERC20 {
 
     address private _signer;
     address private _trustedSafeAddress;
-    mapping(string => bool) private _usedRhashes;
+    mapping(bytes32 => bool) private _usedRhashes;
 
-    event SignerUpdated(address indexed previousSigner, address indexed newSigner);
-    event TrustedSafeAddressUpdated(address indexed previousTrustedSafeAddress, address indexed newTrustedSafeAddress);
-    event Minted(address indexed to, uint256 amount, string rhash);
-    event MintedWithSafe(address indexed to, uint256 amount);
-    event Burned(address indexed from, uint256 amount, string rhash);
+    event SignerUpdated(
+        address indexed previousSigner,
+        address indexed newSigner
+    );
+    event TrustedSafeAddressUpdated(
+        address indexed previousSafeAddress,
+        address indexed newSafeAddress
+    );
+    event Minted(address indexed to, uint256 amount, bytes32 rhash);
+    event Burned(address indexed from, uint256 amount, bytes32 rhash);
 
-    constructor(string memory name, string memory symbol, address signer, address trustedSafeAddress) ERC20(name, symbol) {
+    constructor(
+        string memory name,
+        string memory symbol,
+        address signer,
+        address trustedSafeAddress
+    ) ERC20(name, symbol) {
         _signer = signer;
         _trustedSafeAddress = trustedSafeAddress;
     }
 
-    function printSigner() public view returns (address) {
-        return _signer;
-    }
-
     function decimals() public pure override(ERC20) returns (uint8) {
         return 6;
+    }
+
+    function printSigner() public view returns (address) {
+        return _signer;
     }
 
     function printTrustedSafeAddress() public view returns (address) {
@@ -35,7 +45,10 @@ contract USPlus is ERC20 {
     }
 
     function updateSigner(address newSigner) public {
-        require(newSigner != address(0), "USPlus: new signer is the zero address");
+        require(
+            newSigner != address(0),
+            "USPlus: new signer is the zero address"
+        );
         require(msg.sender == _signer, "USPlus: caller is not the signer");
 
         emit SignerUpdated(_signer, newSigner);
@@ -43,10 +56,19 @@ contract USPlus is ERC20 {
     }
 
     function updateTrustedSafeAddress(address newTrustedSafeAddress) public {
-        require(newTrustedSafeAddress != address(0), "USPlus: new trusted safe address is the zero address");
-        require(msg.sender == _trustedSafeAddress, "USPlus: caller is not the current trusted safe address");
+        require(
+            newTrustedSafeAddress != address(0),
+            "USPlus: new safe address is the zero address"
+        );
+        require(
+            msg.sender == _trustedSafeAddress,
+            "USPlus: caller is not the current safe address"
+        );
 
-        emit TrustedSafeAddressUpdated(_trustedSafeAddress, newTrustedSafeAddress);
+        emit TrustedSafeAddressUpdated(
+            _trustedSafeAddress,
+            newTrustedSafeAddress
+        );
         _trustedSafeAddress = newTrustedSafeAddress;
     }
 
@@ -56,13 +78,19 @@ contract USPlus is ERC20 {
         address to,
         uint256 nonce,
         uint256 timestamp,
-        string memory rhash,
-        string memory signature
+        bytes32 rhash,
+        bytes memory signature
     ) external {
         require(!_usedRhashes[rhash], "USPlus: rhash already used");
 
-        bytes32 message = generateMessageHash(network, amount, to, nonce, timestamp);
-        require(keccak256(abi.encodePacked(message)) == keccak256(abi.encodePacked(rhash)), "USPlus: Invalid rhash");
+        bytes32 message = generateMessageHash(
+            network,
+            amount,
+            to,
+            nonce,
+            timestamp
+        );
+        require(message == rhash, "USPlus: Invalid rhash");
         verifySignature(message, signature);
 
         _usedRhashes[rhash] = true;
@@ -71,33 +99,35 @@ contract USPlus is ERC20 {
         emit Minted(to, amount, rhash);
     }
 
-    function mintWithSafe(uint256 amount, address to) external {
-        require(msg.sender == _trustedSafeAddress, "USPlus: caller is not the trusted safe address");
-
-        _mint(to, amount);
-
-        emit MintedWithSafe(to, amount);
-    }
-
     function burn(
         string memory network,
         uint256 amount,
         address from,
         uint256 nonce,
         uint256 timestamp,
-        string memory rhash,
-        string memory signature
+        bytes32 rhash,
+        bytes memory signature
     ) external {
         require(!_usedRhashes[rhash], "USPlus: rhash already used");
 
-        bytes32 message = generateMessageHash(network, amount, from, nonce, timestamp);
-        require(keccak256(abi.encodePacked(message)) == keccak256(abi.encodePacked(rhash)), "USPlus: Invalid rhash");
-                verifySignature(message, signature);
+        bytes32 message = generateMessageHash(
+            network,
+            amount,
+            from,
+            nonce,
+            timestamp
+        );
+        require(message == rhash, "USPlus: Invalid rhash");
+        verifySignature(message, signature);
 
         _usedRhashes[rhash] = true;
         _burn(from, amount);
 
         emit Burned(from, amount, rhash);
+    }
+
+    function isRhashUsed(bytes32 rhash) public view returns (bool) {
+        return _usedRhashes[rhash];
     }
 
     function generateMessageHash(
@@ -106,18 +136,18 @@ contract USPlus is ERC20 {
         address account,
         uint256 nonce,
         uint256 timestamp
-    ) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(network, amount, account, nonce, timestamp));
+    ) public pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encodePacked(network, amount, account, nonce, timestamp)
+            );
     }
 
-    function verifySignature(bytes32 message, string memory signature) internal view {
-        address signerAddress = message.toEthSignedMessageHash().recover(StringConversion.toBytes(signature));
-        require(signerAddress == _signer, "USPlus: Invalid signature");
-    }
-}
-
-library StringConversion {
-    function toBytes(string memory str) internal pure returns (bytes memory) {
-        return bytes(str);
+    function verifySignature(
+        bytes32 message,
+        bytes memory signature
+    ) public view {
+        address signer = message.toEthSignedMessageHash().recover(signature);
+        require(signer == _signer, "USPlus: Invalid signature");
     }
 }
