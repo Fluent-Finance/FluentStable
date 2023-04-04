@@ -107,39 +107,12 @@ contract USPlus is ERC20 {
         _mint(recipient, amount);
     }
 
-    function burnWithSafe(uint256 amount, address account) external {
+    function burn(uint256 amount, address from) public {
         require(
-            msg.sender == _trustedSafeAddress,
-            "USPlus: Only the trusted safe address can call burnWithSafe"
+            from == msg.sender,
+            "USPlus: Caller can only burn their own tokens"
         );
-        _burn(account, amount);
-    }
-
-    function burn(
-        string memory network,
-        uint256 amount,
-        address from,
-        uint256 nonce,
-        uint256 timestamp,
-        bytes32 rhash,
-        bytes memory signature
-    ) external {
-        require(!_usedRhashes[rhash], "USPlus: rhash already used");
-
-        bytes32 message = generateMessageHash(
-            network,
-            amount,
-            from,
-            nonce,
-            timestamp
-        );
-        require(message == rhash, "USPlus: Invalid rhash");
-        verifySignature(message, signature);
-
-        _usedRhashes[rhash] = true;
         _burn(from, amount);
-
-        emit Burned(from, amount, rhash);
     }
 
     function isRhashUsed(bytes32 rhash) public view returns (bool) {

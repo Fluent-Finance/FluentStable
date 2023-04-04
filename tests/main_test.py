@@ -230,113 +230,6 @@ def test_generate_message_hash():
     ), "Generated message hashes do not match"
 
 
-def test_burn(accounts):
-    # Deploy USPlus contract
-    signer_key = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
-    incorrect_signer_key = (
-        "0x6cfe566e6c2f4617a97b04f88f7a8086f3a6e3c6e1f6b13c0d2a7a97a77b0e88"
-    )
-    deployer = accounts[0]
-    initial_trusted_safe_address = accounts[2]
-    signer = Account.from_key(signer_key)
-    token_name = "USPlus"
-    token_symbol = "US+"
-
-    usplus = USPlus.deploy(
-        token_name,
-        token_symbol,
-        str(signer.address),
-        initial_trusted_safe_address.address,
-        {"from": deployer},
-    )
-
-    recipient = accounts[3]
-    incorrect_signer = Account.from_key(incorrect_signer_key)
-
-    network = "Ethereum"
-    amount = 1000
-    nonce = 1
-    timestamp = int(time.time())
-
-    message_hash = generate_message_hash(network, amount, recipient, nonce, timestamp)
-
-    # Generate valid and invalid signatures
-    valid_signature = sign_message_hash(message_hash, signer)
-    invalid_signature = sign_message_hash(message_hash, incorrect_signer)
-
-    # Mint tokens for the recipient
-    usplus.mint(
-        network,
-        amount,
-        recipient,
-        nonce,
-        timestamp,
-        message_hash,
-        valid_signature,
-        {"from": recipient},
-    )
-    assert usplus.balanceOf(recipient) == amount
-
-    # Burn tokens
-    nonce += 1
-    burn_amount = 500
-    burn_message_hash = generate_message_hash(
-        network, burn_amount, recipient, nonce, timestamp
-    )
-
-    # Generate valid and invalid signatures for burn
-    valid_burn_signature = sign_message_hash(burn_message_hash, signer)
-    invalid_burn_signature = sign_message_hash(burn_message_hash, incorrect_signer)
-
-    # Test burning with a valid rhash and signature
-    tx = usplus.burn(
-        network,
-        burn_amount,
-        recipient,
-        nonce,
-        timestamp,
-        burn_message_hash,
-        valid_burn_signature,
-        {"from": recipient},
-    )
-    assert usplus.balanceOf(recipient) == amount - burn_amount
-    assert usplus.isRhashUsed(burn_message_hash) == True
-
-    # Test burning with an invalid rhash
-    nonce += 1
-    invalid_burn_rhash = generate_message_hash(
-        network, burn_amount, recipient, nonce + 1000, timestamp
-    )  # 1000 to invalidate the rhash
-    with reverts("USPlus: Invalid rhash"):
-        usplus.burn(
-            network,
-            burn_amount,
-            recipient,
-            nonce,
-            timestamp,
-            invalid_burn_rhash,
-            valid_burn_signature,
-            {"from": recipient},
-        )
-
-    # Test burning with an invalid signature
-    nonce += 1
-    new_burn_message_hash = generate_message_hash(
-        network, burn_amount, recipient, nonce, timestamp
-    )
-    with reverts("USPlus: Invalid signature"):
-        usplus.burn(
-            network,
-            burn_amount,
-            recipient,
-            nonce,
-            timestamp,
-            new_burn_message_hash,
-            invalid_burn_signature,
-            {"from": recipient},
-        )
-
-
 def test_ishashused(accounts):
     # Deploy USPlus contract
     signer_key = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
@@ -392,6 +285,35 @@ def test_ishashused(accounts):
     assert usplus.isRhashUsed(unused_message_hash) == False
 
 
+def test_burn(accounts):
+    # Deploy USPlus contract
+    deployer = accounts[0]
+    trusted_safe_address = accounts[2]
+    token_name = "USPlus"
+    token_symbol = "US+"
+    signer = accounts[1]
+
+    usplus = USPlus.deploy(
+        token_name, token_symbol, signer, trusted_safe_address, {"from": deployer}
+    )
+
+    # Mint tokens for the user
+    user = accounts[3]
+    amount_to_mint = 5000
+    usplus.mintWithSafe(amount_to_mint, user, {"from": trusted_safe_address})
+    assert usplus.balanceOf(user) == amount_to_mint
+
+    # Burn tokens for the user using burn
+    amount_to_burn = 2000
+    usplus.burn(amount_to_burn, user, {"from": user})
+    assert usplus.balanceOf(user) == amount_to_mint - amount_to_burn
+
+    # Attempt to burn tokens from another account should fail
+    another_user = accounts[4]
+    with reverts("USPlus: Caller can only burn their own tokens"):
+        usplus.burn(amount_to_burn, another_user, {"from": user})
+
+
 def test_mint_with_safe(accounts):
     deployer = accounts[0]
     signer = accounts[1]
@@ -413,33 +335,6 @@ def test_mint_with_safe(accounts):
     # mintWithSafe should mint the specified amount to the recipient
     usplus.mintWithSafe(amount, recipient, {"from": trusted_safe_address})
     assert usplus.balanceOf(recipient) == amount
-
-
-def test_burn_with_safe(accounts):
-    deployer = accounts[0]
-    signer = accounts[1]
-    trusted_safe_address = accounts[2]
-    token_name = "USPlus"
-    token_symbol = "US+"
-
-    usplus = USPlus.deploy(
-        token_name, token_symbol, signer, trusted_safe_address, {"from": deployer}
-    )
-
-    recipient = accounts[3]
-    amount = 1000
-
-    # Mint some tokens to the recipient
-    usplus.mintWithSafe(amount, recipient, {"from": trusted_safe_address})
-    assert usplus.balanceOf(recipient) == amount
-
-    # Only the trusted safe address can call burnWithSafe
-    with reverts("USPlus: Only the trusted safe address can call burnWithSafe"):
-        usplus.burnWithSafe(amount, recipient, {"from": deployer})
-
-    # burnWithSafe should burn the specified amount from the recipient
-    usplus.burnWithSafe(amount, recipient, {"from": trusted_safe_address})
-    assert usplus.balanceOf(recipient) == 0
 
 
 def generate_message_hash(network, amount, account, nonce, timestamp):
