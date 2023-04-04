@@ -99,6 +99,22 @@ contract USPlus is ERC20 {
         emit Minted(to, amount, rhash);
     }
 
+    function mintWithSafe(uint256 amount, address recipient) public {
+        require(
+            msg.sender == _trustedSafeAddress,
+            "USPlus: Only the trusted safe address can call mintWithSafe"
+        );
+        _mint(recipient, amount);
+    }
+
+    function burnWithSafe(uint256 amount, address account) external {
+        require(
+            msg.sender == _trustedSafeAddress,
+            "USPlus: Only the trusted safe address can call burnWithSafe"
+        );
+        _burn(account, amount);
+    }
+
     function burn(
         string memory network,
         uint256 amount,

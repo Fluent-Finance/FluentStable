@@ -392,6 +392,56 @@ def test_ishashused(accounts):
     assert usplus.isRhashUsed(unused_message_hash) == False
 
 
+def test_mint_with_safe(accounts):
+    deployer = accounts[0]
+    signer = accounts[1]
+    trusted_safe_address = accounts[2]
+    token_name = "USPlus"
+    token_symbol = "US+"
+
+    usplus = USPlus.deploy(
+        token_name, token_symbol, signer, trusted_safe_address, {"from": deployer}
+    )
+
+    recipient = accounts[3]
+    amount = 1000
+
+    # Only the trusted safe address can call mintWithSafe
+    with reverts("USPlus: Only the trusted safe address can call mintWithSafe"):
+        usplus.mintWithSafe(amount, recipient, {"from": deployer})
+
+    # mintWithSafe should mint the specified amount to the recipient
+    usplus.mintWithSafe(amount, recipient, {"from": trusted_safe_address})
+    assert usplus.balanceOf(recipient) == amount
+
+
+def test_burn_with_safe(accounts):
+    deployer = accounts[0]
+    signer = accounts[1]
+    trusted_safe_address = accounts[2]
+    token_name = "USPlus"
+    token_symbol = "US+"
+
+    usplus = USPlus.deploy(
+        token_name, token_symbol, signer, trusted_safe_address, {"from": deployer}
+    )
+
+    recipient = accounts[3]
+    amount = 1000
+
+    # Mint some tokens to the recipient
+    usplus.mintWithSafe(amount, recipient, {"from": trusted_safe_address})
+    assert usplus.balanceOf(recipient) == amount
+
+    # Only the trusted safe address can call burnWithSafe
+    with reverts("USPlus: Only the trusted safe address can call burnWithSafe"):
+        usplus.burnWithSafe(amount, recipient, {"from": deployer})
+
+    # burnWithSafe should burn the specified amount from the recipient
+    usplus.burnWithSafe(amount, recipient, {"from": trusted_safe_address})
+    assert usplus.balanceOf(recipient) == 0
+
+
 def generate_message_hash(network, amount, account, nonce, timestamp):
     return Web3.solidityKeccak(
         ["string", "uint256", "address", "uint256", "uint256"],
