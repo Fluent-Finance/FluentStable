@@ -20,7 +20,8 @@ contract USPlus is ERC20 {
         address indexed newSafeAddress
     );
     event Minted(address indexed to, uint256 amount, bytes32 rhash);
-    event Burned(address indexed from, uint256 amount, bytes32 rhash);
+    event MintedWithSafe(address indexed to, uint256 amount);
+    event Burned(address indexed from, uint256 amount);
 
     constructor(
         string memory name,
@@ -105,6 +106,7 @@ contract USPlus is ERC20 {
             "USPlus: Only the trusted safe address can call mintWithSafe"
         );
         _mint(recipient, amount);
+        emit MintedWithSafe(recipient, amount);
     }
 
     function burn(uint256 amount, address from) public {
@@ -113,6 +115,7 @@ contract USPlus is ERC20 {
             "USPlus: Caller can only burn their own tokens"
         );
         _burn(from, amount);
+        emit Burned(from, amount);
     }
 
     function isRhashUsed(bytes32 rhash) public view returns (bool) {
