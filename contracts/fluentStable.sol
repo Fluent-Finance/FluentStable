@@ -1,4 +1,4 @@
-// This USPlus contract is a custom ERC20 token with additional minting and burning functionality,
+// This FluentStable contract is a custom ERC20 token with additional minting and burning functionality,
 // controlled by a signer and a trusted safe address.
 pragma solidity ^0.8.19;
 // SPDX-License-Identifier: GPL-2.0-only
@@ -6,13 +6,14 @@ pragma solidity ^0.8.19;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
-contract USPlus is ERC20 {
+contract FluentStable is ERC20 {
     using ECDSA for bytes32;
     // The signer is an address responsible for authorizing mint operations.
     address private _signer;
     // The trustedSafeAddress is an address responsible for executing mintWithSafe operations.
     address private _trustedSafeAddress;
     // The _usedRhashes mapping keeps track of used rhashes to prevent replay attacks.
+    uint8 private _decimal;
     mapping(bytes32 => bool) private _usedRhashes;
 
     // Event emitted when the signer is updated.
@@ -36,16 +37,18 @@ contract USPlus is ERC20 {
     constructor(
         string memory name,
         string memory symbol,
+        uint8 decimal,
         address signer,
         address trustedSafeAddress
     ) ERC20(name, symbol) {
         _signer = signer;
         _trustedSafeAddress = trustedSafeAddress;
+        _decimal = decimal;
     }
 
     // Overrides the decimals function of ERC20 to return a fixed value of 6.
-    function decimals() public pure override(ERC20) returns (uint8) {
-        return 6;
+    function decimals() public view override(ERC20) returns (uint8) {
+        return _decimal;
     }
 
     // Returns the signer address.
@@ -62,9 +65,9 @@ contract USPlus is ERC20 {
     function updateSigner(address newSigner) public {
         require(
             newSigner != address(0),
-            "USPlus: new signer is the zero address"
+            "FluentStable: new signer is the zero address"
         );
-        require(msg.sender == _signer, "USPlus: caller is not the signer");
+        require(msg.sender == _signer, "FluentStable: caller is not the signer");
 
         emit SignerUpdated(_signer, newSigner);
         _signer = newSigner;
@@ -74,11 +77,11 @@ contract USPlus is ERC20 {
     function updateTrustedSafeAddress(address newTrustedSafeAddress) public {
         require(
             newTrustedSafeAddress != address(0),
-            "USPlus: new safe address is the zero address"
+            "FluentStable: new safe address is the zero address"
         );
         require(
             msg.sender == _trustedSafeAddress,
-            "USPlus: caller is not the current safe address"
+            "FluentStable: caller is not the current safe address"
         );
 
         emit TrustedSafeAddressUpdated(
@@ -99,7 +102,7 @@ contract USPlus is ERC20 {
         bytes memory signature
     ) external {
         // Ensure the rhash has not been used before to prevent replay attacks.
-        require(!_usedRhashes[rhash], "USPlus: rhash already used");
+        require(!_usedRhashes[rhash], "FluentStable: rhash already used");
 
         // Generate the message hash based on the provided parameters.
         bytes32 message = generateMessageHash(
@@ -110,7 +113,7 @@ contract USPlus is ERC20 {
             timestamp
         );
         // Ensure the provided rhash matches the generated message hash.
-        require(message == rhash, "USPlus: Invalid rhash");
+        require(message == rhash, "FluentStable: Invalid rhash");
         // Verify the provided signature is valid for the generated message hash.
         verifySignature(message, signature);
 
@@ -128,7 +131,7 @@ contract USPlus is ERC20 {
         // Ensure the caller is the trusted safe address.
         require(
             msg.sender == _trustedSafeAddress,
-            "USPlus: Only the trusted safe address can call mintWithSafe"
+            "FluentStable: Only the trusted safe address can call mintWithSafe"
         );
         // Mint the tokens to the recipient.
         _mint(recipient, amount);
@@ -141,7 +144,7 @@ contract USPlus is ERC20 {
         // Ensure the caller is the owner of the tokens to be burned.
         require(
             from == msg.sender,
-            "USPlus: Caller can only burn their own tokens"
+            "FluentStable: Caller can only burn their own tokens"
         );
         // Burn the tokens.
         _burn(from, amount);
@@ -176,6 +179,6 @@ contract USPlus is ERC20 {
         // Recover the signer address from the signature.
         address signer = message.toEthSignedMessageHash().recover(signature);
         // Ensure the recovered signer matches the stored signer.
-        require(signer == _signer, "USPlus: Invalid signature");
+        require(signer == _signer, "FluentStable: Invalid signature");
     }
 }
