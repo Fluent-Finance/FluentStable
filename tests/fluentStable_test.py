@@ -150,7 +150,9 @@ def test_mint(accounts):
     amount = 1000
     timestamp = int(time.time())
 
-    message_hash = generate_message_hash(network, amount, recipient, timestamp)
+    message_hash = generate_message_hash(
+        network, token_symbol, amount, recipient, timestamp
+    )
 
     # Generate valid and invalid signatures
     valid_signature = sign_message_hash(message_hash, signer)
@@ -161,6 +163,7 @@ def test_mint(accounts):
     # Test minting with a valid rhash and signature
     tx = FluentStable.mint(
         network,
+        token_symbol,
         amount,
         recipient,
         timestamp,
@@ -174,6 +177,7 @@ def test_mint(accounts):
     with reverts("FluentStable: Invalid signature"):
         FluentStable.mint(
             network,
+            token_symbol,
             amount + 100,
             recipient,
             timestamp,
@@ -181,9 +185,21 @@ def test_mint(accounts):
             {"from": recipient},
         )
     # Test minting with a invalid network and valid signature
-    with reverts("FluentStable: Wrong network"):
+    with reverts("FluentStable: Invalid network"):
         FluentStable.mint(
             "Blah Blah",
+            token_symbol,
+            amount,
+            recipient,
+            timestamp,
+            invalid_signature,
+            {"from": recipient},
+        )
+    # Test minting with a invalid symbol and valid signature
+    with reverts("FluentStable: Invalid token symbol"):
+        FluentStable.mint(
+            network,
+            "FakeToken",
             amount,
             recipient,
             timestamp,
@@ -194,6 +210,7 @@ def test_mint(accounts):
     with reverts("FluentStable: rhash already used"):
         FluentStable.mint(
             network,
+            token_symbol,
             amount,
             recipient,
             timestamp,
@@ -204,6 +221,7 @@ def test_mint(accounts):
     with reverts("FluentStable: Invalid signature"):
         FluentStable.mint(
             network,
+            token_symbol,
             amount,
             recipient,
             timestamp + 1,
@@ -237,13 +255,13 @@ def test_generate_message_hash():
 
     # Call the generateMessageHash function from the Solidity contract
     contract_generated_hash = FluentStable.generateMessageHash(
-        network, amount, recipient, timestamp
+        network, token_symbol, amount, recipient, timestamp
     )
 
     # Use the same logic to create the message hash in the test script
     script_generated_hash = Web3.solidityKeccak(
-        ["string", "uint256", "address", "uint256"],
-        [network, amount, recipient.address, timestamp],
+        ["string", "string", "uint256", "address", "uint256"],
+        [network, token_symbol, amount, recipient.address, timestamp],
     )
 
     # Compare the results
@@ -277,7 +295,9 @@ def test_ishashused(accounts):
     amount = 1000
     timestamp = int(time.time())
 
-    message_hash = generate_message_hash(network, amount, recipient, timestamp)
+    message_hash = generate_message_hash(
+        network, token_symbol, amount, recipient, timestamp
+    )
 
     # Generate valid signature
     valid_signature = sign_message_hash(message_hash, signer)
@@ -285,6 +305,7 @@ def test_ishashused(accounts):
     # Test minting
     FluentStable.mint(
         network,
+        token_symbol,
         amount,
         recipient,
         timestamp,
@@ -298,7 +319,7 @@ def test_ishashused(accounts):
 
     # Generate an unused rhash
     unused_message_hash = generate_message_hash(
-        network, amount, recipient, timestamp + 1
+        network, token_symbol, amount, recipient, timestamp + 1
     )
 
     # Check if the new rhash is unused
@@ -369,10 +390,10 @@ def test_mint_with_safe(accounts):
     assert FluentStable.balanceOf(recipient) == amount
 
 
-def generate_message_hash(network, amount, account, timestamp):
+def generate_message_hash(network, symbol, amount, account, timestamp):
     return Web3.solidityKeccak(
-        ["string", "uint256", "address", "uint256"],
-        [network, amount, account.address, timestamp],
+        ["string", "string", "uint256", "address", "uint256"],
+        [network, symbol, amount, account.address, timestamp],
     )
 
 

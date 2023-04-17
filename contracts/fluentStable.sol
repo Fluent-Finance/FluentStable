@@ -93,20 +93,28 @@ contract FluentStable is ERC20 {
 
     // Mints tokens to the specified recipient if the provided signature is valid.
     function mint(
-        string memory inetwork,
+        string memory iNetwork,
+        string memory iSymbol,
         uint256 amount,
         address to,
         uint256 timestamp,
         bytes memory signature
     ) external {
         // Generate the message hash based on the provided parameters.
-        bytes32 message = generateMessageHash(inetwork, amount, to, timestamp);
+        bytes32 message = generateMessageHash(iNetwork, iSymbol, amount, to, timestamp);
 
         // Ensure the rhash has not been used before to prevent replay attacks.
         require(
-            keccak256(abi.encodePacked(inetwork)) ==
+            keccak256(abi.encodePacked(iNetwork)) ==
                 keccak256(abi.encodePacked(network)),
-            "FluentStable: Wrong network"
+            "FluentStable: Invalid network"
+        );
+
+        // ensure symbol is correct
+        require(
+            keccak256(abi.encodePacked(iSymbol)) ==
+                keccak256(abi.encodePacked(symbol())),
+            "FluentStable: Invalid token symbol"
         );
 
         // Ensure the rhash has not been used before to prevent replay attacks.
@@ -157,13 +165,14 @@ contract FluentStable is ERC20 {
 
     // Generates a message hash based on the provided parameters.
     function generateMessageHash(
-        string memory inetwork,
+        string memory iNetwork,
+        string memory iSymbol,
         uint256 amount,
         address account,
         uint256 timestamp
     ) public pure returns (bytes32) {
         return
-            keccak256(abi.encodePacked(inetwork, amount, account, timestamp));
+            keccak256(abi.encodePacked(iNetwork, iSymbol, amount, account, timestamp));
     }
 
     // Verifies the provided signature is valid for the given message.
