@@ -18,14 +18,20 @@ def test_constructor():
 
     # Act
     FluentStable = token.deploy(
-        token_name, token_symbol, 6, signer, trusted_safe_address, {"from": deployer}
+        token_name,
+        token_symbol,
+        "Ethereum",
+        6,
+        signer,
+        trusted_safe_address,
+        {"from": deployer},
     )
 
     # Assert
     assert FluentStable.name() == token_name
     assert FluentStable.symbol() == token_symbol
-    assert FluentStable.printSigner() == signer
-    assert FluentStable.printTrustedSafeAddress() == trusted_safe_address
+    assert FluentStable.signer() == signer
+    assert FluentStable.trustedSafeAddress() == trusted_safe_address
 
 
 def test_update_signer():
@@ -40,6 +46,7 @@ def test_update_signer():
     FluentStable = token.deploy(
         token_name,
         token_symbol,
+        "Ethereum",
         6,
         initial_signer,
         trusted_safe_address,
@@ -59,7 +66,7 @@ def test_update_signer():
 
     # Update the signer successfully
     tx = FluentStable.updateSigner(new_signer, {"from": initial_signer})
-    assert FluentStable.printSigner() == new_signer
+    assert FluentStable.signer() == new_signer
     assert "SignerUpdated" in tx.events
     assert tx.events["SignerUpdated"]["previousSigner"] == initial_signer
     assert tx.events["SignerUpdated"]["newSigner"] == new_signer
@@ -77,6 +84,7 @@ def test_update_trusted_safe_address():
     FluentStable = token.deploy(
         token_name,
         token_symbol,
+        "Ethereum",
         6,
         signer,
         initial_trusted_safe_address,
@@ -101,14 +109,14 @@ def test_update_trusted_safe_address():
     tx = FluentStable.updateTrustedSafeAddress(
         new_trusted_safe_address, {"from": initial_trusted_safe_address}
     )
-    assert FluentStable.printTrustedSafeAddress() == new_trusted_safe_address
-    assert "TrustedSafeAddressUpdated" in tx.events
+    assert FluentStable.trustedSafeAddress() == new_trusted_safe_address
+    assert "trustedSafeAddressUpdated" in tx.events
     assert (
-        tx.events["TrustedSafeAddressUpdated"]["previousSafeAddress"]
+        tx.events["trustedSafeAddressUpdated"]["previousSafeAddress"]
         == initial_trusted_safe_address
     )
     assert (
-        tx.events["TrustedSafeAddressUpdated"]["newSafeAddress"]
+        tx.events["trustedSafeAddressUpdated"]["newSafeAddress"]
         == new_trusted_safe_address
     )
 
@@ -128,6 +136,7 @@ def test_mint(accounts):
     FluentStable = token.deploy(
         token_name,
         token_symbol,
+        "Ethereum",
         6,
         str(signer.address),
         initial_trusted_safe_address.address,
@@ -139,10 +148,9 @@ def test_mint(accounts):
 
     network = "Ethereum"
     amount = 1000
-    nonce = 1
     timestamp = int(time.time())
 
-    message_hash = generate_message_hash(network, amount, recipient, nonce, timestamp)
+    message_hash = generate_message_hash(network, amount, recipient, timestamp)
 
     # Generate valid and invalid signatures
     valid_signature = sign_message_hash(message_hash, signer)
@@ -155,43 +163,50 @@ def test_mint(accounts):
         network,
         amount,
         recipient,
-        nonce,
         timestamp,
-        message_hash,
         valid_signature,
         {"from": recipient},
     )
     assert FluentStable.balanceOf(recipient) == amount
     assert FluentStable.isRhashUsed(message_hash) == True
 
-    # Test minting with an invalid rhash
-    invalid_rhash = generate_message_hash(
-        network, amount, recipient, nonce + 1000, timestamp
-    )  # 1000 to invalidate the rhash
-    with reverts("FluentStable: Invalid rhash"):
+    # Test minting with a invalid hash and valid signature
+    with reverts("FluentStable: Invalid signature"):
+        FluentStable.mint(
+            network,
+            amount + 100,
+            recipient,
+            timestamp,
+            invalid_signature,
+            {"from": recipient},
+        )
+    # Test minting with a invalid network and valid signature
+    with reverts("FluentStable: Wrong network"):
+        FluentStable.mint(
+            "Blah Blah",
+            amount,
+            recipient,
+            timestamp,
+            invalid_signature,
+            {"from": recipient},
+        )
+    # Test if rhash is being used
+    with reverts("FluentStable: rhash already used"):
         FluentStable.mint(
             network,
             amount,
             recipient,
-            nonce,
             timestamp,
-            invalid_rhash,
             valid_signature,
             {"from": recipient},
         )
-
     # Test minting with an invalid signature
-    message_hash = generate_message_hash(
-        network, amount, recipient, nonce + 2, timestamp
-    )
     with reverts("FluentStable: Invalid signature"):
         FluentStable.mint(
             network,
             amount,
             recipient,
-            nonce + 2,
-            timestamp,
-            message_hash,
+            timestamp + 1,
             invalid_signature,
             {"from": recipient},
         )
@@ -207,6 +222,7 @@ def test_generate_message_hash():
     FluentStable = token.deploy(
         token_name,
         token_symbol,
+        "Ethereum",
         6,
         deployer,
         initial_trusted_safe_address,
@@ -217,18 +233,17 @@ def test_generate_message_hash():
     network = "Ethereum"
     amount = 1000
     recipient = accounts[1]
-    nonce = 42
     timestamp = int(time.time())
 
     # Call the generateMessageHash function from the Solidity contract
     contract_generated_hash = FluentStable.generateMessageHash(
-        network, amount, recipient, nonce, timestamp
+        network, amount, recipient, timestamp
     )
 
     # Use the same logic to create the message hash in the test script
     script_generated_hash = Web3.solidityKeccak(
-        ["string", "uint256", "address", "uint256", "uint256"],
-        [network, amount, recipient.address, nonce, timestamp],
+        ["string", "uint256", "address", "uint256"],
+        [network, amount, recipient.address, timestamp],
     )
 
     # Compare the results
@@ -249,6 +264,7 @@ def test_ishashused(accounts):
     FluentStable = token.deploy(
         token_name,
         token_symbol,
+        "Ethereum",
         6,
         str(signer.address),
         initial_trusted_safe_address.address,
@@ -259,10 +275,9 @@ def test_ishashused(accounts):
 
     network = "Ethereum"
     amount = 1000
-    nonce = 1
     timestamp = int(time.time())
 
-    message_hash = generate_message_hash(network, amount, recipient, nonce, timestamp)
+    message_hash = generate_message_hash(network, amount, recipient, timestamp)
 
     # Generate valid signature
     valid_signature = sign_message_hash(message_hash, signer)
@@ -272,9 +287,7 @@ def test_ishashused(accounts):
         network,
         amount,
         recipient,
-        nonce,
         timestamp,
-        message_hash,
         valid_signature,
         {"from": recipient},
     )
@@ -284,9 +297,8 @@ def test_ishashused(accounts):
     assert FluentStable.isRhashUsed(message_hash) == True
 
     # Generate an unused rhash
-    nonce += 1
     unused_message_hash = generate_message_hash(
-        network, amount, recipient, nonce, timestamp
+        network, amount, recipient, timestamp + 1
     )
 
     # Check if the new rhash is unused
@@ -302,7 +314,13 @@ def test_burn(accounts):
     signer = accounts[1]
 
     FluentStable = token.deploy(
-        token_name, token_symbol, 6, signer, trusted_safe_address, {"from": deployer}
+        token_name,
+        token_symbol,
+        "Ethereum",
+        6,
+        signer,
+        trusted_safe_address,
+        {"from": deployer},
     )
 
     # Mint tokens for the user
@@ -330,7 +348,13 @@ def test_mint_with_safe(accounts):
     token_symbol = "US+"
 
     FluentStable = token.deploy(
-        token_name, token_symbol, 6, signer, trusted_safe_address, {"from": deployer}
+        token_name,
+        token_symbol,
+        "Ethereum",
+        6,
+        signer,
+        trusted_safe_address,
+        {"from": deployer},
     )
 
     recipient = accounts[3]
@@ -345,10 +369,10 @@ def test_mint_with_safe(accounts):
     assert FluentStable.balanceOf(recipient) == amount
 
 
-def generate_message_hash(network, amount, account, nonce, timestamp):
+def generate_message_hash(network, amount, account, timestamp):
     return Web3.solidityKeccak(
-        ["string", "uint256", "address", "uint256", "uint256"],
-        [network, amount, account.address, nonce, timestamp],
+        ["string", "uint256", "address", "uint256"],
+        [network, amount, account.address, timestamp],
     )
 
 
