@@ -101,7 +101,13 @@ contract FluentStable is ERC20 {
         bytes memory signature
     ) external {
         // Generate the message hash based on the provided parameters.
-        bytes32 message = generateMessageHash(iNetwork, iSymbol, amount, to, timestamp);
+        bytes32 message = generateMessageHash(
+            iNetwork,
+            iSymbol,
+            amount,
+            to,
+            timestamp
+        );
 
         // Ensure the rhash has not been used before to prevent replay attacks.
         require(
@@ -172,7 +178,9 @@ contract FluentStable is ERC20 {
         uint256 timestamp
     ) public pure returns (bytes32) {
         return
-            keccak256(abi.encodePacked(iNetwork, iSymbol, amount, account, timestamp));
+            keccak256(
+                abi.encodePacked(iNetwork, iSymbol, amount, account, timestamp)
+            );
     }
 
     // Verifies the provided signature is valid for the given message.
