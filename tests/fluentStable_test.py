@@ -21,6 +21,7 @@ def test_constructor():
         token_name,
         token_symbol,
         "Ethereum",
+        accounts[9],
         6,
         signer,
         trusted_safe_address,
@@ -47,6 +48,7 @@ def test_update_signer():
         token_name,
         token_symbol,
         "Ethereum",
+        accounts[9],
         6,
         initial_signer,
         trusted_safe_address,
@@ -85,6 +87,7 @@ def test_update_trusted_safe_address():
         token_name,
         token_symbol,
         "Ethereum",
+        accounts[9],
         6,
         signer,
         initial_trusted_safe_address,
@@ -137,6 +140,7 @@ def test_mint(accounts):
         token_name,
         token_symbol,
         "Ethereum",
+        accounts[9],
         6,
         str(signer.address),
         initial_trusted_safe_address.address,
@@ -241,6 +245,7 @@ def test_generate_message_hash():
         token_name,
         token_symbol,
         "Ethereum",
+        accounts[9],
         6,
         deployer,
         initial_trusted_safe_address,
@@ -283,6 +288,7 @@ def test_ishashused(accounts):
         token_name,
         token_symbol,
         "Ethereum",
+        accounts[9],
         6,
         str(signer.address),
         initial_trusted_safe_address.address,
@@ -338,6 +344,7 @@ def test_burn(accounts):
         token_name,
         token_symbol,
         "Ethereum",
+        accounts[9],
         6,
         signer,
         trusted_safe_address,
@@ -372,6 +379,7 @@ def test_mint_with_safe(accounts):
         token_name,
         token_symbol,
         "Ethereum",
+        accounts[9],
         6,
         signer,
         trusted_safe_address,
@@ -401,3 +409,85 @@ def sign_message_hash(message_hash, signer):
     msg = encode_defunct(message_hash)
     signedObject = Account.sign_message(msg, signer.privateKey)
     return signedObject.signature
+
+
+def test_blacklist(accounts):
+    # Deploy FluentStable contract
+    deployer = accounts[0]
+    signer = accounts[1]
+    trusted_safe_address = accounts[2]
+    token_name = "USPlus"
+    token_symbol = "US+"
+    blacklister = accounts[9]
+
+    FluentStable = token.deploy(
+        token_name,
+        token_symbol,
+        "Ethereum",
+        blacklister,
+        6,
+        signer,
+        trusted_safe_address,
+        {"from": deployer},
+    )
+
+    # Blacklisting an address
+    blacklisted_address = accounts[4]
+    non_blacklisted_address = accounts[5]
+
+    # Only the owner can blacklist an address
+    with reverts("FluentStable: Only blacklister can blacklist addresses"):
+        FluentStable.blacklist(blacklisted_address, {"from": signer})
+
+    # Blacklist the address
+    FluentStable.blacklist(blacklisted_address, {"from": blacklister})
+
+    # Test transfer from a blacklisted address
+    with reverts("FluentStable: Source address is blacklisted"):
+        FluentStable.transfer(
+            non_blacklisted_address, 100, {"from": blacklisted_address}
+        )
+
+    # Test transfer to a blacklisted address
+    with reverts("FluentStable: Destination address is blacklisted"):
+        FluentStable.transfer(
+            blacklisted_address, 100, {"from": non_blacklisted_address}
+        )
+
+
+def test_update_blacklister(accounts):
+    # Deploy FluentStable contract
+    deployer = accounts[0]
+    new_blacklister = accounts[1]
+    signer = accounts[2]
+    trusted_safe_address = accounts[3]
+    token_name = "USPlus"
+    token_symbol = "US+"
+    blacklister = accounts[9]
+    new_blacklister = accounts[8]
+    random_address = accounts[7]
+
+    FluentStable = token.deploy(
+        token_name,
+        token_symbol,
+        "Ethereum",
+        blacklister,
+        6,
+        signer,
+        trusted_safe_address,
+        {"from": deployer},
+    )
+
+    # Update the blacklister
+    with reverts("FluentStable: Only blacklister can blacklist addresses"):
+        FluentStable.blacklist(random_address, {"from": new_blacklister})
+
+    with reverts("FluentStable: New blacklister cannot be the zero address"):
+        FluentStable.updateBlacklister(
+            "0x0000000000000000000000000000000000000000", {"from": blacklister}
+        )
+
+    FluentStable.updateBlacklister(new_blacklister, {"from": blacklister})
+
+    # Test blacklisting with new blacklister
+    FluentStable.blacklist(random_address, {"from": new_blacklister})

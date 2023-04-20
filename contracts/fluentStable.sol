@@ -14,6 +14,10 @@ contract FluentStable is ERC20 {
     address public trustedSafeAddress;
     // The _usedRhashes mapping keeps track of used rhashes to prevent replay attacks.
     mapping(bytes32 => bool) private _usedRhashes;
+    // The blacklister keeps track of the address that can blacklist addresses.
+    address public blacklister;
+    // The _blacklist mapping keeps track of blacklisted addresses.
+    mapping(address => bool) private _blacklist;
     // symbol keeps track of the symbol of the token
     uint8 private decimal;
     // network keep track of network this contract is deployed for
@@ -41,11 +45,16 @@ contract FluentStable is ERC20 {
     // Event emitted when tokens are burned.
     event Burned(address indexed from, uint256 amount, string network);
 
-    // Constructor initializes the contract with a name, symbol, signer, and trusted safe address.
+    event Blacklisted(address indexed account);
+    event Unblacklisted(address indexed account);
+    event BlacklisterUpdated(address indexed newBlacklister);
+
+    // Constructor initializes the contract with a name, symbol, signer, blacklister, and trusted safe address.
     constructor(
         string memory _name,
         string memory _symbol,
         string memory _network,
+        address _blacklister,
         uint8 _decimal,
         address _signer,
         address _trustedSafeAddress
@@ -54,6 +63,7 @@ contract FluentStable is ERC20 {
         trustedSafeAddress = _trustedSafeAddress;
         network = _network;
         decimal = _decimal;
+        blacklister = _blacklister;
     }
 
     // Overrides the decimals function of ERC20 to return a fixed value of 6.
@@ -164,9 +174,65 @@ contract FluentStable is ERC20 {
         emit Burned(from, amount, network);
     }
 
+    function _transfer(
+        address sender,
+        address recipient,
+        uint256 amount
+    ) internal virtual override {
+        require(
+            !_blacklist[sender],
+            "FluentStable: Source address is blacklisted"
+        );
+        require(
+            !_blacklist[recipient],
+            "FluentStable: Destination address is blacklisted"
+        );
+        super._transfer(sender, recipient, amount);
+    }
+
     // Returns whether the provided rhash has been used before.
     function isRhashUsed(bytes32 rhash) public view returns (bool) {
         return _usedRhashes[rhash];
+    }
+
+    function blacklist(address account) public {
+        require(
+            msg.sender == blacklister,
+            "FluentStable: Only blacklister can blacklist addresses"
+        );
+        require(!_blacklist[account], "Account is already blacklisted");
+        _blacklist[account] = true;
+        emit Blacklisted(account);
+    }
+
+    function unblacklist(address account) public {
+        require(
+            msg.sender == blacklister,
+            "FluentStable: Only blacklister can unblacklist addresses"
+        );
+        require(
+            _blacklist[account],
+            "FluentStable: Account is not blacklisted"
+        );
+        _blacklist[account] = false;
+        emit Unblacklisted(account);
+    }
+
+    function isBlacklisted(address account) public view returns (bool) {
+        return _blacklist[account];
+    }
+
+    function updateBlacklister(address newBlacklister) public {
+        require(
+            newBlacklister != address(0),
+            "FluentStable: New blacklister cannot be the zero address"
+        );
+        require(
+            msg.sender == blacklister,
+            "FluentStable: Only blacklister can update blacklister"
+        );
+        blacklister = newBlacklister;
+        emit BlacklisterUpdated(newBlacklister);
     }
 
     // Generates a message hash based on the provided parameters.
