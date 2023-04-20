@@ -54,8 +54,8 @@ contract FluentStable is ERC20 {
         string memory _name,
         string memory _symbol,
         string memory _network,
-        address _blacklister,
         uint8 _decimal,
+        address _blacklister,
         address _signer,
         address _trustedSafeAddress
     ) ERC20(_name, _symbol) {
